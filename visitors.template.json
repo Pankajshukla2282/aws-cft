@@ -1,0 +1,539 @@
+{
+  "Resources": {
+    "LambdaServiceRole1": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "LambdaServiceRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "tblvisitor",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "tblvisitor",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "LambdaServiceRoleDefaultPolicy",
+        "Roles": [
+          {
+            "Ref": "LambdaServiceRole1"
+          }
+        ]
+      }
+    },
+    "LambdaFunction1": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "ZipFile" : {
+            "Fn::Join" : [
+              "\n", 
+              [
+                "import json",
+                "import os",
+                "import boto3",
+                "ddb = boto3.resource('dynamodb')",
+                "_lambda = boto3.client('lambda')",
+                "table = ddb.Table(os.environ['TABLE_NAME'])",
+                "def handler(event, context):",
+                "   print('Request event: {}'.format(json.dumps(event)))",
+                "   actions = {",
+                "     'POST': lambda dynamo, x: dynamo.put_item(**x),",
+                "     'GET': lambda dynamo, x: dynamo.scan()",
+                "     'FIND': lambda dynamo, k, v: dynamo.query(KeyConditionExpression=Key(k).eq(v))",
+                "   }",
+                "   respData = {",
+                "     'isBase64Encoded': 'true',",
+                "     'statusCode': 200,",
+                "     'headers': { 'Content-Type': 'application/json' }",
+                "   }",
+                "   try:",
+                "     visitorname = event['queryStringParameters']['name']",
+                "     existing = actions['FIND'](table, 'visitorname', visitorname)",
+                "     if len(existing['Items']) > 0 :",
+                "       respData['body'] = 'Welcome back {}'.format(visitorname)",
+                "     else:",
+                "       created = actions[method](table, {'Item': 'visitorname':{'S':visitorname}})",
+                "       respData['body'] = 'Welcome {}'.format(visitorname)",
+                "     return respData",
+                "   except Exception as e:",
+                "     respData['body'] = \"{c}: {m}\".format(c = type(e).__name__, m = str(e))",
+                "     return respData",
+              ]
+            ]
+          }
+        },
+
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaServiceRole1",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "tblvisitor"
+            }
+          }
+        }
+      },
+      "DependsOn": [
+        "LambdaServiceRoleDefaultPolicy",
+        "LambdaServiceRole1"
+      ]
+    },
+    "tblvisitor": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "KeySchema": [
+          {
+            "AttributeName": "visitorname",
+            "KeyType": "HASH"
+          }
+        ],
+        "AttributeDefinitions": [
+          {
+           "AttributeName": "visitorname",
+            "AttributeType": "S"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 5,
+          "WriteCapacityUnits": 5
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain"
+    },
+    "APIRole1": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "APIRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "LambdaFunction1",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "APIRoleDefaultPolicy",
+        "Roles": [
+          {
+            "Ref": "APIRole1"
+          }
+        ]
+      }
+    },
+    "APIGW1": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Description": "This is a server for Visitor management.",
+        "Name": "Visitors"
+      }
+    },
+    "APIGW1CloudWatchRole1": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "APIGW1Account1": {
+      "Type": "AWS::ApiGateway::Account",
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "APIGW1CloudWatchRole1",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "APIGW1"
+      ]
+    },
+    "APIGW1Deployment1": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "APIGW1"
+        },
+        "Description": ""
+      },
+      "DependsOn": [
+        "APIGW1visitorModel",
+        "APIGW1visitorGET",
+        "APIGW1visitor"
+      ]
+    },
+    "APIGW1Deployment1Stageprod": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "APIGW1"
+        },
+        "DeploymentId": {
+          "Ref": "APIGW1Deployment1"
+        },
+        "StageName": "prod"
+      }
+    },
+    "APIGW1visitor": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "APIGW1",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "visitor",
+        "RestApiId": {
+          "Ref": "APIGW1"
+        }
+      }
+    },
+    "APIGW1visitorGETPerms": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "LambdaFunction1",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:us-east-2:",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "APIGW1"
+              },
+              "/",
+              {
+                "Ref": "APIGW1Deployment1Stageprod"
+              },
+              "/GET/visitor"
+            ]
+          ]
+        }
+      }
+    },
+    "APIGW1visitorGET": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "GET",
+        "ResourceId": {
+          "Ref": "APIGW1visitor"
+        },
+        "RestApiId": {
+          "Ref": "APIGW1"
+        },
+        "ApiKeyRequired": true,
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "ContentHandling": "CONVERT_TO_TEXT",
+          "Credentials": {
+            "Fn::GetAtt": [
+              "APIRole1",
+              "Arn"
+            ]
+          },
+          "IntegrationHttpMethod": "POST",
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Content-Type": "'application/json'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Allow-Credentials": "'false'",
+                "method.response.header.Access-Control-Allow-Headers": "'Postman-Token,Host,x-apigw-api-id,x-api-key,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST'"
+              },
+              "ResponseTemplates": {
+                "application/json": ""
+              },
+              "StatusCode": "200"
+            }
+          ],
+          "PassthroughBehavior": "WHEN_NO_MATCH",
+          "RequestParameters": {
+            "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
+          },
+          "RequestTemplates": {
+            "application/json": "{\"httpMethod\": \"$context.httpMethod\",\"body\": \"$util.escapeJavaScript($input.json('$'))\"}"
+          },
+          "Type": "AWS",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":apigateway:us-east-2:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "LambdaFunction1",
+                    "Arn"
+                  ]
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Content-Type": true,
+              "method.response.header.Access-Control-Allow-Headers": false,
+              "method.response.header.Access-Control-Allow-Methods": false,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Credentials": false
+            },
+            "StatusCode": "200"
+          },
+          {
+            "ResponseParameters": {
+              "method.response.header.Content-Type": true,
+              "method.response.header.Access-Control-Allow-Headers": false,
+              "method.response.header.Access-Control-Allow-Methods": false,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Credentials": false
+            },
+            "StatusCode": "400"
+          }
+        ]
+      }
+    },
+    "APIGW1visitorModel": {
+      "Type": "AWS::ApiGateway::Model",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "APIGW1"
+        },
+        "ContentType": "application/json",
+        "Name": "VisitorModel",
+        "Schema": {
+          "properties": {
+            "visitorname": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "visitorname"
+          ],
+          "type": "object",
+          "$schema": "http://json-schema.org/draft-04/schema#"
+        }
+      }
+    },
+    "APIGW1visitorApiKey": {
+      "Type": "AWS::ApiGateway::ApiKey",
+      "Properties": {
+        "Enabled": true,
+        "Name": "MyVisitorApiKey1",
+        "StageKeys": [
+          {
+            "RestApiId": {
+              "Ref": "APIGW1"
+            },
+            "StageName": {
+              "Ref": "APIGW1Deployment1Stageprod"
+            }
+          }
+        ],
+        "Value": "MyApiKeyThatIsAtLeast20Characters"
+      }
+    },
+    "APIGW1visitorApiPlan": {
+      "Type": "AWS::ApiGateway::UsagePlan",
+      "Properties": {
+        "ApiStages": [
+          {
+            "ApiId": {
+              "Ref": "APIGW1"
+            },
+            "Stage": {
+              "Ref": "APIGW1Deployment1Stageprod"
+            },
+            "Throttle": {
+              "/visitor/GET": {}
+            }
+          }
+        ],
+        "Throttle": {
+          "BurstLimit": 5,
+          "RateLimit": 100
+        },
+        "UsagePlanName": "Easy"
+      }
+    },
+    "APIGW1visitorApiPlanKey": {
+      "Type": "AWS::ApiGateway::UsagePlanKey",
+      "Properties": {
+        "KeyId": {
+          "Ref": "APIGW1visitorApiKey"
+        },
+        "KeyType": "API_KEY",
+        "UsagePlanId": {
+          "Ref": "APIGW1visitorApiPlan"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "APIGW1Endpoint": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "APIGW1"
+            },
+            ".execute-api.us-east-2.",
+            {
+              "Ref": "AWS::URLSuffix"
+            },
+            "/",
+            {
+              "Ref": "APIGW1Deployment1Stageprod"
+            },
+            "/"
+          ]
+        ]
+      }
+    }
+  }
+}
