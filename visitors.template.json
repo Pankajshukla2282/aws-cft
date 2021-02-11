@@ -1,539 +1,308 @@
 {
-  "Resources": {
-    "LambdaServiceRole1": {
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Automating the Visitor greeting application by checking if visitor is new or old",
+
+  "Metadata" : {
+    "Lambda" : {"Description" : "Lambda function is to greet visitor"},
+    "API" : {"Description" : "API Gateway processes the request utilizing the Lambda function"},
+    "Database" : {"Description" : "DynamoDB stores the visitor name"}
+  },
+
+  "Parameters" : {
+    "apiKeyName": {
+      "Description" : "API Key is used in calling api",
+      "Type": "String",
+      "Default" : "MyApiKeyThatIsAtLeast20Characters",
+      "NoEcho": "true",
+      "MinLength": "20",
+      "MaxLength": "50",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*"
+    }
+  },
+
+  "Resources" : {
+
+    "LambdaRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
         "AssumeRolePolicyDocument": {
-          "Statement": [
-            {
-              "Action": "sts:AssumeRole",
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "lambda.amazonaws.com"
-              }
-            }
-          ],
-          "Version": "2012-10-17"
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Principal": { "Service": "lambda.amazonaws.com" }
+          }]
         },
-        "ManagedPolicyArns": [
-          {
-            "Fn::Join": [
-              "",
-              [
-                "arn:",
-                {
-                  "Ref": "AWS::Partition"
-                },
-                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-              ]
-            ]
-          }
-        ]
+        "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
       }
     },
-    "LambdaServiceRoleDefaultPolicy": {
+
+    "LambdaRolePolicy": {
       "Type": "AWS::IAM::Policy",
       "Properties": {
         "PolicyDocument": {
-          "Statement": [
-            {
-              "Action": [
-                "dynamodb:BatchWriteItem",
-                "dynamodb:PutItem",
-                "dynamodb:UpdateItem"
-              ],
-              "Effect": "Allow",
-              "Resource": [
-                {
-                  "Fn::GetAtt": [
-                    "tblvisitor",
-                    "Arn"
-                  ]
-                },
-                {
-                  "Ref": "AWS::NoValue"
-                }
-              ]
-            },
-            {
-              "Action": [
-                "dynamodb:BatchGetItem",
-                "dynamodb:GetRecords",
-                "dynamodb:GetShardIterator",
-                "dynamodb:Query",
-                "dynamodb:GetItem",
-                "dynamodb:Scan"
-              ],
-              "Effect": "Allow",
-              "Resource": [
-                {
-                  "Fn::GetAtt": [
-                    "tblvisitor",
-                    "Arn"
-                  ]
-                },
-                {
-                  "Ref": "AWS::NoValue"
-                }
-              ]
-            }
-          ],
-          "Version": "2012-10-17"
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Action": [
+              "dynamodb:BatchWriteItem",
+              "dynamodb:PutItem",
+              "dynamodb:UpdateItem"
+            ],
+            "Effect": "Allow",
+            "Resource": [{"Fn::GetAtt": ["DynamoVisitor","Arn"]}]
+          },{
+            "Action": [
+              "dynamodb:BatchGetItem",
+              "dynamodb:GetRecords",
+              "dynamodb:GetShardIterator",
+              "dynamodb:Query",
+              "dynamodb:GetItem",
+              "dynamodb:Scan"
+            ],
+            "Effect": "Allow",
+            "Resource": [{"Fn::GetAtt": ["DynamoVisitor","Arn"]}]
+          }]
         },
-        "PolicyName": "LambdaServiceRoleDefaultPolicy",
-        "Roles": [
-          {
-            "Ref": "LambdaServiceRole1"
-          }
-        ]
+        "PolicyName": "LambdaRolePolicy",
+        "Roles": [{"Ref": "LambdaRole"}]
       }
     },
-    "LambdaFunction1": {
+
+    "VisitorLambda": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
-          "ZipFile" : {
-            "Fn::Join" : [
-              "\n", 
-              [
-                "import json",
-                "import os",
-                "import boto3",
-                "ddb = boto3.resource('dynamodb')",
-                "_lambda = boto3.client('lambda')",
-                "table = ddb.Table(os.environ['TABLE_NAME'])",
-                "def handler(event, context):",
-                "   print('Request event: {}'.format(json.dumps(event)))",
-                "   actions = {",
-                "     'POST': lambda dynamo, x: dynamo.put_item(**x),",
-                "     'GET': lambda dynamo, x: dynamo.scan()",
-                "     'FIND': lambda dynamo, k, v: dynamo.query(KeyConditionExpression=Key(k).eq(v))",
-                "   }",
-                "   respData = {",
-                "     'isBase64Encoded': 'true',",
-                "     'statusCode': 200,",
-                "     'headers': { 'Content-Type': 'application/json' }",
-                "   }",
-                "   try:",
-                "     visitorname = event['queryStringParameters']['name']",
-                "     existing = actions['FIND'](table, 'visitorname', visitorname)",
-                "     if len(existing['Items']) > 0 :",
-                "       respData['body'] = 'Welcome back {}'.format(visitorname)",
-                "     else:",
-                "       created = actions[method](table, {'Item': 'visitorname':{'S':visitorname}})",
-                "       respData['body'] = 'Welcome {}'.format(visitorname)",
-                "     return respData",
-                "   except Exception as e:",
-                "     respData['body'] = \"{c}: {m}\".format(c = type(e).__name__, m = str(e))",
-                "     return respData",
-              ]
-            ]
-          }
+          "ZipFile" : {"Fn::Join" : ["\n", [
+            "import json",
+            "import os",
+            "import boto3",
+            "ddb = boto3.resource('dynamodb')",
+            "from boto3.dynamodb.conditions import Key",
+            "_lambda = boto3.client('lambda')",
+            "table = ddb.Table(os.environ['TABLE_NAME'])",
+            "def handler(event, context):",
+            "   print('Request event: {}'.format(json.dumps(event)))",
+            "   actions = {",
+            "     'POST': lambda dynamo, x: dynamo.put_item(**x),",
+            "     'GET': lambda dynamo, x: dynamo.scan(),",
+            "     'FIND': lambda dynamo, k, v: dynamo.query(KeyConditionExpression=Key(k).eq(v))",
+            "   }",
+            "   respData = {",
+            "     'isBase64Encoded': 'true',",
+            "     'statusCode': 200,",
+            "     'headers': { 'Content-Type': 'application/json' }",
+            "   }",
+            "   try:",
+            "     visitorname = event['name']",
+            "     print('req-name {}'.format(visitorname))",
+            "     existing = actions['FIND'](table, 'visitorname', visitorname)",
+            "     if len(existing['Items']) > 0 :",
+            "       respData['body'] = 'Welcome back {}'.format(visitorname)",
+            "     else:",
+            "       created = actions['POST'](table, {'Item': {'visitorname':visitorname}})",
+            "       respData['body'] = 'Welcome {}'.format(visitorname)",
+            "     return respData",
+            "   except Exception as e:",
+            "     respData['body'] = \"{c}: {m}\".format(c = type(e).__name__, m = str(e))",
+            "     return respData",
+          ]]}
         },
 
         "Handler": "index.handler",
-        "Role": {
-          "Fn::GetAtt": [
-            "LambdaServiceRole1",
-            "Arn"
-          ]
-        },
+        "Description": "Lambda function for Visitor greeting",
+        "FunctionName": "VisitorLambda",
+        "Role": {"Fn::GetAtt": ["LambdaRole","Arn"]},
         "Runtime": "python3.8",
         "Environment": {
           "Variables": {
-            "TABLE_NAME": {
-              "Ref": "tblvisitor"
-            }
+            "TABLE_NAME": {"Ref": "DynamoVisitor"}
           }
         }
       },
-      "DependsOn": [
-        "LambdaServiceRoleDefaultPolicy",
-        "LambdaServiceRole1"
-      ]
+      "DependsOn": ["LambdaRolePolicy","LambdaRole"]
     },
-    "tblvisitor": {
+
+    "DynamoVisitor": {
       "Type": "AWS::DynamoDB::Table",
       "Properties": {
-        "KeySchema": [
-          {
-            "AttributeName": "visitorname",
-            "KeyType": "HASH"
-          }
-        ],
-        "AttributeDefinitions": [
-          {
-           "AttributeName": "visitorname",
-            "AttributeType": "S"
-          }
-        ],
+        "KeySchema": [{
+          "AttributeName": "visitorname",
+          "KeyType": "HASH"
+        }],
+        "AttributeDefinitions": [{
+          "AttributeName": "visitorname",
+          "AttributeType": "S"
+        }],
         "ProvisionedThroughput": {
           "ReadCapacityUnits": 5,
           "WriteCapacityUnits": 5
         }
-      },
-      "UpdateReplacePolicy": "Retain",
-      "DeletionPolicy": "Retain"
-    },
-    "APIRole1": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "AssumeRolePolicyDocument": {
-          "Statement": [
-            {
-              "Action": "sts:AssumeRole",
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "apigateway.amazonaws.com"
-              }
-            }
-          ],
-          "Version": "2012-10-17"
-        }
       }
     },
-    "APIRoleDefaultPolicy": {
-      "Type": "AWS::IAM::Policy",
-      "Properties": {
-        "PolicyDocument": {
-          "Statement": [
-            {
-              "Action": "lambda:InvokeFunction",
-              "Effect": "Allow",
-              "Resource": {
-                "Fn::GetAtt": [
-                  "LambdaFunction1",
-                  "Arn"
-                ]
-              }
-            }
-          ],
-          "Version": "2012-10-17"
-        },
-        "PolicyName": "APIRoleDefaultPolicy",
-        "Roles": [
-          {
-            "Ref": "APIRole1"
-          }
-        ]
-      }
-    },
-    "APIGW1": {
+
+    "VisitorApi": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
-        "Description": "This is a server for Visitor management.",
-        "Name": "Visitors"
+        "Name": "Visitor API",
+        "Description": "API for Visitor management."
       }
     },
-    "APIGW1CloudWatchRole1": {
+
+    "APILambdaPerms": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:invokeFunction",
+        "FunctionName": {"Fn::GetAtt": ["VisitorLambda", "Arn"]},
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {"Fn::Join": ["", ["arn:", {"Ref": "AWS::Partition"}, ":execute-api:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":", {"Ref": "VisitorApi"}, "/*"]]}
+      }
+    },
+
+    "ApiGwCWRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
         "AssumeRolePolicyDocument": {
-          "Statement": [
-            {
-              "Action": "sts:AssumeRole",
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "apigateway.amazonaws.com"
-              }
-            }
-          ],
-          "Version": "2012-10-17"
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": ["apigateway.amazonaws.com"] },
+            "Action": ["sts:AssumeRole"]
+          }]
         },
-        "ManagedPolicyArns": [
-          {
-            "Fn::Join": [
-              "",
-              [
-                "arn:",
-                {
-                  "Ref": "AWS::Partition"
-                },
-                ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
-              ]
-            ]
-          }
-        ]
+        "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"]
       }
     },
-    "APIGW1Account1": {
+
+    "ApiGwAccount": {
       "Type": "AWS::ApiGateway::Account",
       "Properties": {
-        "CloudWatchRoleArn": {
-          "Fn::GetAtt": [
-            "APIGW1CloudWatchRole1",
-            "Arn"
-          ]
-        }
+        "CloudWatchRoleArn": {"Fn::GetAtt": ["ApiGwCWRole", "Arn"] }
       },
-      "DependsOn": [
-        "APIGW1"
-      ]
+      "DependsOn": ["VisitorApi"]
     },
-    "APIGW1Deployment1": {
-      "Type": "AWS::ApiGateway::Deployment",
-      "Properties": {
-        "RestApiId": {
-          "Ref": "APIGW1"
-        },
-        "Description": ""
-      },
-      "DependsOn": [
-        "APIGW1visitorModel",
-        "APIGW1visitorGET",
-        "APIGW1visitor"
-      ]
-    },
-    "APIGW1Deployment1Stageprod": {
+
+    "VisitorApiStage": {
       "Type": "AWS::ApiGateway::Stage",
       "Properties": {
-        "RestApiId": {
-          "Ref": "APIGW1"
-        },
-        "DeploymentId": {
-          "Ref": "APIGW1Deployment1"
-        },
-        "StageName": "prod"
-      }
+        "DeploymentId": {"Ref": "ApiGwDeployment"},
+        "MethodSettings": [{
+          "DataTraceEnabled": true,
+          "HttpMethod": "*",
+          "LoggingLevel": "INFO",
+          "ResourcePath": "/*"
+        }],
+        "RestApiId": {"Ref": "VisitorApi"},
+        "StageName": "PROD"
+      },
+      "DependsOn": ["ApiGwAccount"]
     },
-    "APIGW1visitor": {
+
+    "ApiGwDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {"Ref": "VisitorApi"}
+      },
+      "DependsOn": ["VisitorRequest"]
+    },
+
+    "VisitorResource": {
       "Type": "AWS::ApiGateway::Resource",
       "Properties": {
-        "ParentId": {
-          "Fn::GetAtt": [
-            "APIGW1",
-            "RootResourceId"
-          ]
-        },
-        "PathPart": "visitor",
-        "RestApiId": {
-          "Ref": "APIGW1"
-        }
+        "RestApiId": {"Ref": "VisitorApi"},
+        "ParentId": {"Fn::GetAtt": ["VisitorApi", "RootResourceId"]},
+        "PathPart": "visitor"
       }
     },
-    "APIGW1visitorGETPerms": {
-      "Type": "AWS::Lambda::Permission",
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Fn::GetAtt": [
-            "LambdaFunction1",
-            "Arn"
-          ]
-        },
-        "Principal": "apigateway.amazonaws.com",
-        "SourceArn": {
-          "Fn::Join": [
-            "",
-            [
-              "arn:",
-              {
-                "Ref": "AWS::Partition"
-              },
-              ":execute-api:us-east-2:",
-              {
-                "Ref": "AWS::AccountId"
-              },
-              ":",
-              {
-                "Ref": "APIGW1"
-              },
-              "/",
-              {
-                "Ref": "APIGW1Deployment1Stageprod"
-              },
-              "/GET/visitor"
-            ]
-          ]
-        }
-      }
-    },
-    "APIGW1visitorGET": {
+
+    "VisitorRequest": {
       "Type": "AWS::ApiGateway::Method",
       "Properties": {
-        "HttpMethod": "GET",
-        "ResourceId": {
-          "Ref": "APIGW1visitor"
-        },
-        "RestApiId": {
-          "Ref": "APIGW1"
-        },
-        "ApiKeyRequired": true,
         "AuthorizationType": "NONE",
+        "HttpMethod": "GET",
         "Integration": {
-          "ContentHandling": "CONVERT_TO_TEXT",
-          "Credentials": {
-            "Fn::GetAtt": [
-              "APIRole1",
-              "Arn"
-            ]
-          },
-          "IntegrationHttpMethod": "POST",
-          "IntegrationResponses": [
-            {
-              "ResponseParameters": {
-                "method.response.header.Content-Type": "'application/json'",
-                "method.response.header.Access-Control-Allow-Origin": "'*'",
-                "method.response.header.Access-Control-Allow-Credentials": "'false'",
-                "method.response.header.Access-Control-Allow-Headers": "'Postman-Token,Host,x-apigw-api-id,x-api-key,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
-                "method.response.header.Access-Control-Allow-Methods": "'GET,POST'"
-              },
-              "ResponseTemplates": {
-                "application/json": ""
-              },
-              "StatusCode": "200"
-            }
-          ],
-          "PassthroughBehavior": "WHEN_NO_MATCH",
-          "RequestParameters": {
-            "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
-          },
-          "RequestTemplates": {
-            "application/json": "{\"httpMethod\": \"$context.httpMethod\",\"body\": \"$util.escapeJavaScript($input.json('$'))\"}"
-          },
           "Type": "AWS",
-          "Uri": {
-            "Fn::Join": [
-              "",
-              [
-                "arn:",
-                {
-                  "Ref": "AWS::Partition"
-                },
-                ":apigateway:us-east-2:lambda:path/2015-03-31/functions/",
-                {
-                  "Fn::GetAtt": [
-                    "LambdaFunction1",
-                    "Arn"
-                  ]
-                },
-                "/invocations"
-              ]
-            ]
+          "IntegrationHttpMethod": "POST",
+          "ContentHandling": "CONVERT_TO_TEXT",
+          "Uri": {"Fn::Join": ["",
+            ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", {"Fn::GetAtt": ["VisitorLambda", "Arn"]}, "/invocations"]
+          ]},
+          "IntegrationResponses": [{
+            "StatusCode": 200
+          }],
+          "RequestTemplates": {
+            "application/json": {"Fn::Join": ["", [
+              "{",
+              "  \"name\": \"$input.params('name')\"",
+              "}"
+            ]]}
           }
         },
-        "MethodResponses": [
-          {
-            "ResponseParameters": {
-              "method.response.header.Content-Type": true,
-              "method.response.header.Access-Control-Allow-Headers": false,
-              "method.response.header.Access-Control-Allow-Methods": false,
-              "method.response.header.Access-Control-Allow-Origin": true,
-              "method.response.header.Access-Control-Allow-Credentials": false
-            },
-            "StatusCode": "200"
-          },
-          {
-            "ResponseParameters": {
-              "method.response.header.Content-Type": true,
-              "method.response.header.Access-Control-Allow-Headers": false,
-              "method.response.header.Access-Control-Allow-Methods": false,
-              "method.response.header.Access-Control-Allow-Origin": true,
-              "method.response.header.Access-Control-Allow-Credentials": false
-            },
-            "StatusCode": "400"
-          }
-        ]
-      }
-    },
-    "APIGW1visitorModel": {
-      "Type": "AWS::ApiGateway::Model",
-      "Properties": {
-        "RestApiId": {
-          "Ref": "APIGW1"
+        "RequestParameters": {
+          "method.request.querystring.name": false
         },
-        "ContentType": "application/json",
-        "Name": "VisitorModel",
-        "Schema": {
-          "properties": {
-            "visitorname": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "visitorname"
-          ],
-          "type": "object",
-          "$schema": "http://json-schema.org/draft-04/schema#"
-        }
-      }
+        "ResourceId": {"Ref": "VisitorResource"},
+        "RestApiId": {"Ref": "VisitorApi"},
+        "ApiKeyRequired": true,
+        "MethodResponses": [{
+          "StatusCode": 200
+        }]
+      },
+      "DependsOn": ["APILambdaPerms"]
     },
-    "APIGW1visitorApiKey": {
+
+    "VisitorApiKey": {
       "Type": "AWS::ApiGateway::ApiKey",
       "Properties": {
         "Enabled": true,
-        "Name": "MyVisitorApiKey1",
-        "StageKeys": [
-          {
-            "RestApiId": {
-              "Ref": "APIGW1"
-            },
-            "StageName": {
-              "Ref": "APIGW1Deployment1Stageprod"
-            }
-          }
-        ],
-        "Value": "MyApiKeyThatIsAtLeast20Characters"
+        "Name": "VisitorApiKey",
+        "StageKeys": [{
+          "RestApiId": {"Ref": "VisitorApi"},
+          "StageName": {"Ref": "VisitorApiStage"}
+        }],
+        "Value": {"Ref": "apiKeyName"}
       }
     },
-    "APIGW1visitorApiPlan": {
+
+    "VisitorApiPlan": {
       "Type": "AWS::ApiGateway::UsagePlan",
       "Properties": {
-        "ApiStages": [
-          {
-            "ApiId": {
-              "Ref": "APIGW1"
-            },
-            "Stage": {
-              "Ref": "APIGW1Deployment1Stageprod"
-            },
-            "Throttle": {
-              "/visitor/GET": {}
+        "ApiStages": [{
+          "ApiId": {"Ref": "VisitorApi"},
+          "Stage": {"Ref": "VisitorApiStage"},
+          "Throttle": {
+            "/visitor/GET": {
+              "BurstLimit": 100,
+              "RateLimit": 100
             }
           }
-        ],
+        }],
+        "Quota": {
+          "Limit": 500,
+          "Period": "WEEK"
+        },
         "Throttle": {
-          "BurstLimit": 5,
+          "BurstLimit": 100,
           "RateLimit": 100
         },
-        "UsagePlanName": "Easy"
+        "UsagePlanName": "Basic"
       }
     },
-    "APIGW1visitorApiPlanKey": {
+
+    "VisitorApiPlanKey": {
       "Type": "AWS::ApiGateway::UsagePlanKey",
       "Properties": {
-        "KeyId": {
-          "Ref": "APIGW1visitorApiKey"
-        },
+        "KeyId": {"Ref": "VisitorApiKey"},
         "KeyType": "API_KEY",
-        "UsagePlanId": {
-          "Ref": "APIGW1visitorApiPlan"
-        }
+        "UsagePlanId": {"Ref": "VisitorApiPlan"}
       }
     }
   },
-  "Outputs": {
-    "APIGW1Endpoint": {
-      "Value": {
-        "Fn::Join": [
-          "",
-          [
-            "https://",
-            {
-              "Ref": "APIGW1"
-            },
-            ".execute-api.us-east-2.",
-            {
-              "Ref": "AWS::URLSuffix"
-            },
-            "/",
-            {
-              "Ref": "APIGW1Deployment1Stageprod"
-            },
-            "/"
-          ]
-        ]
-      }
+  
+  "Outputs" : {
+    "VisitorApiEndpoint": {
+      "Description": "Root URL of the API gateway",
+      "Value": {"Fn::Join": ["", ["https://", {"Ref": "VisitorApi"}, ".execute-api.", {"Ref": "AWS::Region"}, ".", {"Ref": "AWS::URLSuffix"}, "/", {"Ref": "VisitorApiStage"}, "/"]]}
     }
   }
 }
