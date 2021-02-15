@@ -1,7 +1,7 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "Automating the Visitor greeting application by checking if visitor is new or old",
+  "Description" : "Automating the  Visitor greeting application by checking if visitor is new or old",
 
   "Metadata" : {
     "Lambda" : {"Description" : "Lambda function is to greet visitor"},
