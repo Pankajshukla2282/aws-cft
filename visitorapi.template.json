@@ -83,7 +83,7 @@
           "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
         },
         "RequestTemplates": {
-          "application/json": "{\"httpMethod\": \"$context.httpMethod\",\"body\": \"$util.escapeJavaScript($input.json('$'))\"}"
+          "application/json": "{\n \"statusCode\": 200\n}"
         },
         "ResourceId": {"Ref": "VisitorResource"},
         "RestApiId": {"Ref": "VisitorApi"},
