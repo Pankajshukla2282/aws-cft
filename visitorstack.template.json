@@ -1,0 +1,74 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description" : "Root Stack for Visitor assessment stacks",
+
+    "Parameters" : {
+      "DbTableName": {
+        "Description": "Name of DynamoDB table",
+        "Type": "String",
+        "MinLength" : 4,
+        "MaxLength" : 20,
+        "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+        "Default" : "visitor"
+      },
+      "apiKeyName": {
+        "Description" : "API Key is used in calling api",
+        "Type": "String",
+        "NoEcho": "true",
+        "MinLength": "20",
+        "MaxLength": "50",
+        "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+        "Default" : "MyApiKeyThatIsAtLeast20Characters"
+      }  
+    },
+
+    "Resources" : {
+      "DbStack": {
+        "Description": "CloudFormation stack for DynamoDB definitions.",
+        "Type": "AWS::CloudFormation::Stack",
+        "Properties": {
+          "Parameters": {
+            "PassedTableName": { "Ref": "DbTableName" }
+          },
+          "TemplateURL": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitordb.template.json"
+        }
+      },
+      "RolesStack": {
+        "Type": "AWS::CloudFormation::Stack",
+        "Properties": {
+          "Parameters": {
+            "VisitorDBArn": { "Fn::GetAtt": ["DbStack", "Outputs.VisitorDBArn"] }
+          },
+          "TemplateURL": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorroles.template.json"
+        }
+      },
+      "LambdaStack": {
+        "Type": "AWS::CloudFormation::Stack",
+        "Properties": {
+          "Parameters": {
+            "PassedTableName": { "Ref": "DbTableName" },
+            "PassedLambdaRoleArn": { "Fn::GetAtt": ["RolesStack", "Outputs.LambdaRoleArn"] }
+          },
+          "TemplateURL": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorlambda.template.json"
+        }
+      },
+      "ApiStack": {
+        "Type": "AWS::CloudFormation::Stack",
+        "Properties": {
+          "Parameters": {
+            "PassedApiKey": { "Ref": "apiKeyName" },
+            "PassedLambdaRoleArn": { "Fn::GetAtt": ["RolesStack", "Outputs.LambdaRoleArn"] },
+            "PassedApiLogRoleArn": { "Fn::GetAtt": ["RolesStack", "Outputs.ApiLogRoleArn"] },
+            "PassedLambdaFunctionArn": { "Fn::GetAtt": ["LambdaStack", "Outputs.LambdaFunctionArn"] }
+          },
+          "TemplateURL": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorapi.template.json"
+        }
+      }
+    },
+
+    "Outputs": {
+      "VisitorApi" : {
+        "Value" : { "Fn::GetAtt" : [ "ApiStack", "Outputs.VisitorApiEndpoint" ] }
+      }
+    }
+  }

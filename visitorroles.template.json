@@ -4,26 +4,12 @@
   "Description" : "Defining Roles for Visitor Assessment",
 
   "Parameters": {
-    "RolesStack": {
-      "Description": "CloudFormation stack for Roles.",
-      "Type": "String",
-      "MinLength" : 6,
-      "MaxLength" : 100,
-      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
-      "Default" : "visitorrolesstack"
-    },
-
-    "apiKeyName": {
-      "Description" : "API Key is used in calling api",
-      "Type": "String",
-      "Default" : "MyApiKeyThatIsAtLeast20Characters",
-      "NoEcho": "true",
-      "MinLength": "20",
-      "MaxLength": "50",
-      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*"
+    "VisitorDBArn": {
+      "Description": "Name of DynamoDB table",
+      "Type": "String"
     }
   },
-
+  
   "Resources" : {
 
     "LambdaRole": {
@@ -68,7 +54,7 @@
               "dynamodb:UpdateItem"
             ],
             "Effect": "Allow",
-            "Resource": [{ "Fn::ImportValue" : {"Fn::Sub": "visitordbstack-VisitorDB" } }]
+            "Resource": { "Ref" : "VisitorDBArn" }
           },{
             "Action": [
               "dynamodb:BatchGetItem",
@@ -79,7 +65,7 @@
               "dynamodb:Scan"
             ],
             "Effect": "Allow",
-            "Resource": [{ "Fn::ImportValue" : {"Fn::Sub": "visitordbstack-VisitorDB" } }]
+            "Resource": { "Ref" : "VisitorDBArn" }
           }]
         },
         "PolicyName": "LambdaRolePolicy",
@@ -89,25 +75,13 @@
   },
   
   "Outputs" : {
-    "LambdaRole" : {
+    "LambdaRoleArn" : {
       "Description" : "Role definition for Lambda",
-      "Value" :  { "Ref" : "LambdaRole" },
-      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-LambdaRole" }}
+      "Value": {"Fn::GetAtt": ["LambdaRole","Arn"]}
     },
-    "LambdaPolicy" : {
-      "Description" : "Policy definition for Lambda Role",
-      "Value" :  { "Ref" : "LambdaRolePolicy" },
-      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-LambdaPolicy" }}
-    },
-    "ApiLogRole" : {
+    "ApiLogRoleArn" : {
       "Description" : "Role definition for API Gateway CloudWatch",
-      "Value" :  { "Ref" : "ApiGwCWRole" },
-      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-ApiLogRole" }}
-    },
-    "ApiKey" : {
-      "Description" : "Role definition for API Gateway CloudWatch",
-      "Value" :  { "Ref" : "apiKeyName" },
-      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-ApiKey" }}
+      "Value": {"Fn::GetAtt": ["ApiGwCWRole","Arn"]}
     }
   }
 }

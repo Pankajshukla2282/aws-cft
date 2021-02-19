@@ -4,13 +4,21 @@
   "Description" : "API definition for Visitor assessment",
 
   "Parameters": {
-    "APIStack": {
-      "Description": "CloudFormation stack for API definitions.",
-      "Type": "String",
-      "MinLength" : 6,
-      "MaxLength" : 100,
-      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
-      "Default" : "visitorapistack"
+    "PassedApiKey": {
+      "Description" : "API Key is used to call api",
+      "Type": "String"
+    },
+    "PassedLambdaRoleArn": {
+      "Description": "Role for API to Invoke Lambda",
+      "Type": "String"
+    },
+    "PassedApiLogRoleArn": {
+      "Description": "Role for API to CloudWatch logs",
+      "Type": "String"
+    },
+    "PassedLambdaFunctionArn": {
+      "Description": "Lambda Function to configure as backend for API",
+      "Type": "String"
     }
   },
 
@@ -27,7 +35,7 @@
     "ApiGwAccount": {
       "Type": "AWS::ApiGateway::Account",
       "Properties": {
-        "CloudWatchRoleArn": {"Fn::GetAtt": [{ "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-ApiLogRole" } }, "Arn"] }
+        "CloudWatchRoleArn": { "Ref": "PassedApiLogRoleArn" }
       },
       "DependsOn": ["VisitorApi"]
     },
@@ -45,7 +53,7 @@
       "Type": "AWS::Lambda::Permission",
       "Properties": {
         "Action": "lambda:invokeFunction",
-        "FunctionName": { "Fn::ImportValue" : {"Fn::Sub": "${lambdastack}-LambdaFunction" } },
+        "FunctionName": { "Ref" : "PassedLambdaFunctionArn" },
         "Principal": "apigateway.amazonaws.com",
         "SourceArn": {"Fn::Join": ["", ["arn:", {"Ref": "AWS::Partition"}, ":execute-api:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":", {"Ref": "VisitorApi"}, "/*"]]}
       }
@@ -55,27 +63,27 @@
       "Type": "AWS::ApiGateway::Method",
       "Properties": {
         "AuthorizationType": "NONE",
-        "HttpMethod": "GET",
+        "HttpMethod": "POST",
         "Integration": {
           "Type": "AWS",
           "IntegrationHttpMethod": "POST",
           "ContentHandling": "CONVERT_TO_TEXT",
           "Uri": {"Fn::Join": ["",
-            ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", { "Fn::ImportValue" : {"Fn::Sub": "${lambdastack}-LambdaFunction" } }, "/invocations"]
+            ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", { "Ref" : "PassedLambdaFunctionArn" }, "/invocations"]
           ]},
           "IntegrationResponses": [{
-            "StatusCode": 200
-          }],
-          "RequestTemplates": {
-            "application/json": {"Fn::Join": ["", [
-              "{",
-              "  \"name\": \"$input.params('name')\"",
-              "}"
-            ]]}
-          }
+            "ResponseTemplates": {
+              "application/json": ""
+            },
+            "StatusCode": "200"
+          }]
         },
+        "PassthroughBehavior": "WHEN_NO_MATCH",
         "RequestParameters": {
-          "method.request.querystring.name": false
+          "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
+        },
+        "RequestTemplates": {
+          "application/json": "{\"httpMethod\": \"$context.httpMethod\",\"body\": \"$util.escapeJavaScript($input.json('$'))\"}"
         },
         "ResourceId": {"Ref": "VisitorResource"},
         "RestApiId": {"Ref": "VisitorApi"},
@@ -120,7 +128,7 @@
           "RestApiId": {"Ref": "VisitorApi"},
           "StageName": {"Ref": "VisitorApiStage"}
         }],
-        "Value": { "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-ApiKey" } }
+        "Value": { "Ref": "PassedApiKey" }
       }
     },
 
@@ -132,8 +140,12 @@
           "Stage": {"Ref": "VisitorApiStage"},
           "Throttle": {
             "/visitor/GET": {
-              "BurstLimit": 100,
-              "RateLimit": 100
+              "BurstLimit": 2,
+              "RateLimit": 2
+            },
+            "/visitor/POST": {
+              "BurstLimit": 10,
+              "RateLimit": 10
             }
           }
         }],
@@ -142,8 +154,8 @@
           "Period": "WEEK"
         },
         "Throttle": {
-          "BurstLimit": 100,
-          "RateLimit": 100
+          "BurstLimit": 10,
+          "RateLimit": 10
         },
         "UsagePlanName": "Basic"
       }

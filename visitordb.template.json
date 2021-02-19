@@ -3,14 +3,10 @@
 
   "Description" : "Databse for Visitor assessment",
 
-  "Parameters": {
-    "DbStack": {
-      "Description": "CloudFormation stack for DynamoDB definitions.",
-      "Type": "String",
-      "MinLength" : 6,
-      "MaxLength" : 100,
-      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
-      "Default" : "visitordbstack"
+  "Parameters" : {
+    "PassedTableName": {
+      "Description": "Name of DynamoDB table",
+      "Type": "String"
     }
   },
 
@@ -19,6 +15,7 @@
     "DynamoVisitor": {
       "Type": "AWS::DynamoDB::Table",
       "Properties": {
+        "TableName" : { "Ref": "PassedTableName" },
         "KeySchema": [{
           "AttributeName": "visitorname",
           "KeyType": "HASH"
@@ -36,10 +33,9 @@
   },
   
   "Outputs" : {
-    "VisitorDB" : {
+    "VisitorDBArn" : {
       "Description" : "Visitor DynamoDB",
-      "Value" :  { "Ref" : "DynamoVisitor" },
-      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-VisitorDB" }}
-    }  
+      "Value": {"Fn::GetAtt": ["DynamoVisitor","Arn"]}
+    }
   }
 }
