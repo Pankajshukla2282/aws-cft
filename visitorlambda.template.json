@@ -1,0 +1,81 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+  
+    "Description" : "Lambda funcitons definition for Visitor assessment",
+
+    "Parameters": {
+      "LambdaStack": {
+        "Description": "CloudFormation stack for Lambda definitions.",
+        "Type": "String",
+        "MinLength" : 6,
+        "MaxLength" : 100,
+        "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+        "Default" : "visitorlambdastack"
+      }
+    },
+
+    "Resources" : {
+    
+      "VisitorLambda": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+          "Code": {
+            "ZipFile" : {"Fn::Join" : ["\n", [
+              "import json",
+              "import os",
+              "import boto3",
+              "ddb = boto3.resource('dynamodb')",
+              "from boto3.dynamodb.conditions import Key",
+              "_lambda = boto3.client('lambda')",
+              "table = ddb.Table(os.environ['TABLE_NAME'])",
+              "def handler(event, context):",
+              "   print('Request event: {}'.format(json.dumps(event)))",
+              "   actions = {",
+              "     'POST': lambda dynamo, x: dynamo.put_item(**x),",
+              "     'GET': lambda dynamo, x: dynamo.scan(),",
+              "     'FIND': lambda dynamo, k, v: dynamo.query(KeyConditionExpression=Key(k).eq(v))",
+              "   }",
+              "   respData = {",
+              "     'isBase64Encoded': 'true',",
+              "     'statusCode': 200,",
+              "     'headers': { 'Content-Type': 'application/json' }",
+              "   }",
+              "   try:",
+              "     visitorname = event['name']",
+              "     print('req-name {}'.format(visitorname))",
+              "     existing = actions['FIND'](table, 'visitorname', visitorname)",
+              "     if len(existing['Items']) > 0 :",
+              "       respData['body'] = 'Welcome back {}'.format(visitorname)",
+              "     else:",
+              "       created = actions['POST'](table, {'Item': {'visitorname':visitorname}})",
+              "       respData['body'] = 'Welcome {}'.format(visitorname)",
+              "     return respData",
+              "   except Exception as e:",
+              "     respData['body'] = \"{c}: {m}\".format(c = type(e).__name__, m = str(e))",
+              "     return respData"
+            ]]}
+          },
+  
+          "Handler": "index.handler",
+          "Description": "Lambda function for Visitor greeting",
+          "FunctionName": "VisitorLambda",
+          "Role": { "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-LambdaRole" } },
+          "Runtime": "python3.8",
+          "Environment": {
+            "Variables": {
+              "TABLE_NAME": { "Fn::ImportValue" : {"Fn::Sub": "${dbstack}-VisitorDB" } }
+            }
+          }
+        },
+        "DependsOn": [{ "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-LambdaPolicy" } },{ "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-LambdaRole" } }]
+      }
+    },
+    
+    "Outputs" : {
+      "LambdaFunction" : {
+        "Description" : "Lambda function",
+        "Value" :  { "Ref" : "VisitorLambda" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-LambdaFunction" }}
+      }  
+    }
+  }

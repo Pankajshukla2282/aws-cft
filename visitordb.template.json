@@ -1,0 +1,45 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Databse for Visitor assessment",
+
+  "Parameters": {
+    "DbStack": {
+      "Description": "CloudFormation stack for DynamoDB definitions.",
+      "Type": "String",
+      "MinLength" : 6,
+      "MaxLength" : 100,
+      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+      "Default" : "visitordbstack"
+    }
+  },
+
+  "Resources" : {
+
+    "DynamoVisitor": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "KeySchema": [{
+          "AttributeName": "visitorname",
+          "KeyType": "HASH"
+        }],
+        "AttributeDefinitions": [{
+          "AttributeName": "visitorname",
+          "AttributeType": "S"
+        }],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 5,
+          "WriteCapacityUnits": 5
+        }
+      }
+    }
+  },
+  
+  "Outputs" : {
+    "VisitorDB" : {
+      "Description" : "Visitor DynamoDB",
+      "Value" :  { "Ref" : "DynamoVisitor" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-VisitorDB" }}
+    }  
+  }
+}

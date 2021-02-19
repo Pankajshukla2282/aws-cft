@@ -1,0 +1,168 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "API definition for Visitor assessment",
+
+  "Parameters": {
+    "APIStack": {
+      "Description": "CloudFormation stack for API definitions.",
+      "Type": "String",
+      "MinLength" : 6,
+      "MaxLength" : 100,
+      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+      "Default" : "visitorapistack"
+    }
+  },
+
+  "Resources" : {
+
+    "VisitorApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "Visitor API",
+        "Description": "API for Visitor management."
+      }
+    },
+
+    "ApiGwAccount": {
+      "Type": "AWS::ApiGateway::Account",
+      "Properties": {
+        "CloudWatchRoleArn": {"Fn::GetAtt": [{ "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-ApiLogRole" } }, "Arn"] }
+      },
+      "DependsOn": ["VisitorApi"]
+    },
+
+    "VisitorResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {"Ref": "VisitorApi"},
+        "ParentId": {"Fn::GetAtt": ["VisitorApi", "RootResourceId"]},
+        "PathPart": "visitor"
+      }
+    },
+  
+    "APILambdaPerms": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:invokeFunction",
+        "FunctionName": { "Fn::ImportValue" : {"Fn::Sub": "${lambdastack}-LambdaFunction" } },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {"Fn::Join": ["", ["arn:", {"Ref": "AWS::Partition"}, ":execute-api:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":", {"Ref": "VisitorApi"}, "/*"]]}
+      }
+    },
+
+    "VisitorRequest": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "GET",
+        "Integration": {
+          "Type": "AWS",
+          "IntegrationHttpMethod": "POST",
+          "ContentHandling": "CONVERT_TO_TEXT",
+          "Uri": {"Fn::Join": ["",
+            ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", { "Fn::ImportValue" : {"Fn::Sub": "${lambdastack}-LambdaFunction" } }, "/invocations"]
+          ]},
+          "IntegrationResponses": [{
+            "StatusCode": 200
+          }],
+          "RequestTemplates": {
+            "application/json": {"Fn::Join": ["", [
+              "{",
+              "  \"name\": \"$input.params('name')\"",
+              "}"
+            ]]}
+          }
+        },
+        "RequestParameters": {
+          "method.request.querystring.name": false
+        },
+        "ResourceId": {"Ref": "VisitorResource"},
+        "RestApiId": {"Ref": "VisitorApi"},
+        "ApiKeyRequired": true,
+        "MethodResponses": [{
+          "StatusCode": 200
+        }]
+      },
+      "DependsOn": ["APILambdaPerms"]
+    },
+
+    "ApiGwDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {"Ref": "VisitorApi"}
+      },
+      "DependsOn": ["VisitorRequest"]
+    },
+
+    "VisitorApiStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "DeploymentId": {"Ref": "ApiGwDeployment"},
+        "MethodSettings": [{
+          "DataTraceEnabled": true,
+          "HttpMethod": "*",
+          "LoggingLevel": "INFO",
+          "ResourcePath": "/*"
+        }],
+        "RestApiId": {"Ref": "VisitorApi"},
+        "StageName": "PROD"
+      },
+      "DependsOn": ["ApiGwAccount"]
+    },
+
+    "VisitorApiKey": {
+      "Type": "AWS::ApiGateway::ApiKey",
+      "Properties": {
+        "Enabled": true,
+        "Name": "VisitorApiKey",
+        "StageKeys": [{
+          "RestApiId": {"Ref": "VisitorApi"},
+          "StageName": {"Ref": "VisitorApiStage"}
+        }],
+        "Value": { "Fn::ImportValue" : {"Fn::Sub": "${rolesstack}-ApiKey" } }
+      }
+    },
+
+    "VisitorApiPlan": {
+      "Type": "AWS::ApiGateway::UsagePlan",
+      "Properties": {
+        "ApiStages": [{
+          "ApiId": {"Ref": "VisitorApi"},
+          "Stage": {"Ref": "VisitorApiStage"},
+          "Throttle": {
+            "/visitor/GET": {
+              "BurstLimit": 100,
+              "RateLimit": 100
+            }
+          }
+        }],
+        "Quota": {
+          "Limit": 500,
+          "Period": "WEEK"
+        },
+        "Throttle": {
+          "BurstLimit": 100,
+          "RateLimit": 100
+        },
+        "UsagePlanName": "Basic"
+      }
+    },
+
+    "VisitorApiPlanKey": {
+      "Type": "AWS::ApiGateway::UsagePlanKey",
+      "Properties": {
+        "KeyId": {"Ref": "VisitorApiKey"},
+        "KeyType": "API_KEY",
+        "UsagePlanId": {"Ref": "VisitorApiPlan"}
+      }
+    }
+  },
+  
+  "Outputs" : {
+    "VisitorApiEndpoint": {
+      "Description": "Root URL of the API gateway",
+      "Value": {"Fn::Join": ["", ["https://", {"Ref": "VisitorApi"}, ".execute-api.", {"Ref": "AWS::Region"}, ".", {"Ref": "AWS::URLSuffix"}, "/", {"Ref": "VisitorApiStage"}, "/"]]}
+    }
+  }
+}

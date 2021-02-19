@@ -1,0 +1,113 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Defining Roles for Visitor Assessment",
+
+  "Parameters": {
+    "RolesStack": {
+      "Description": "CloudFormation stack for Roles.",
+      "Type": "String",
+      "MinLength" : 6,
+      "MaxLength" : 100,
+      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+      "Default" : "visitorrolesstack"
+    },
+
+    "apiKeyName": {
+      "Description" : "API Key is used in calling api",
+      "Type": "String",
+      "Default" : "MyApiKeyThatIsAtLeast20Characters",
+      "NoEcho": "true",
+      "MinLength": "20",
+      "MaxLength": "50",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*"
+    }
+  },
+
+  "Resources" : {
+
+    "LambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Principal": { "Service": "lambda.amazonaws.com" }
+          }]
+        },
+        "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+      }
+    },
+
+    "ApiGwCWRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": ["apigateway.amazonaws.com"] },
+            "Action": ["sts:AssumeRole"]
+          }]
+        },
+        "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"]
+      }
+    },
+
+    "LambdaRolePolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Action": [
+              "dynamodb:BatchWriteItem",
+              "dynamodb:PutItem",
+              "dynamodb:UpdateItem"
+            ],
+            "Effect": "Allow",
+            "Resource": [{ "Fn::ImportValue" : {"Fn::Sub": "visitordbstack-VisitorDB" } }]
+          },{
+            "Action": [
+              "dynamodb:BatchGetItem",
+              "dynamodb:GetRecords",
+              "dynamodb:GetShardIterator",
+              "dynamodb:Query",
+              "dynamodb:GetItem",
+              "dynamodb:Scan"
+            ],
+            "Effect": "Allow",
+            "Resource": [{ "Fn::ImportValue" : {"Fn::Sub": "visitordbstack-VisitorDB" } }]
+          }]
+        },
+        "PolicyName": "LambdaRolePolicy",
+        "Roles": [{"Ref": "LambdaRole"}]
+      }
+    }
+  },
+  
+  "Outputs" : {
+    "LambdaRole" : {
+      "Description" : "Role definition for Lambda",
+      "Value" :  { "Ref" : "LambdaRole" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-LambdaRole" }}
+    },
+    "LambdaPolicy" : {
+      "Description" : "Policy definition for Lambda Role",
+      "Value" :  { "Ref" : "LambdaRolePolicy" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-LambdaPolicy" }}
+    },
+    "ApiLogRole" : {
+      "Description" : "Role definition for API Gateway CloudWatch",
+      "Value" :  { "Ref" : "ApiGwCWRole" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-ApiLogRole" }}
+    },
+    "ApiKey" : {
+      "Description" : "Role definition for API Gateway CloudWatch",
+      "Value" :  { "Ref" : "apiKeyName" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-ApiKey" }}
+    }
+  }
+}
