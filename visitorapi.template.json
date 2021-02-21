@@ -68,6 +68,13 @@
           "Type": "AWS",
           "IntegrationHttpMethod": "POST",
           "ContentHandling": "CONVERT_TO_TEXT",
+          "RequestTemplates": {
+            "application/json": {"Fn::Join": ["", [
+              "{",
+              "  \"name\": \"$input.params('name')\"",
+              "}"
+            ]]}
+          },
           "Uri": {"Fn::Join": ["",
             ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", { "Ref" : "PassedLambdaFunctionArn" }, "/invocations"]
           ]},
@@ -76,14 +83,11 @@
               "application/json": ""
             },
             "StatusCode": "200"
-          }]
-        },
-        "PassthroughBehavior": "WHEN_NO_MATCH",
-        "RequestParameters": {
-          "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
-        },
-        "RequestTemplates": {
-          "application/json": "{\n \"statusCode\": 200\n}"
+          }],
+          "PassthroughBehavior": "WHEN_NO_MATCH",
+          "RequestParameters": {
+            "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
+          }  
         },
         "ResourceId": {"Ref": "VisitorResource"},
         "RestApiId": {"Ref": "VisitorApi"},
@@ -139,10 +143,6 @@
           "ApiId": {"Ref": "VisitorApi"},
           "Stage": {"Ref": "VisitorApiStage"},
           "Throttle": {
-            "/visitor/GET": {
-              "BurstLimit": 2,
-              "RateLimit": 2
-            },
             "/visitor/POST": {
               "BurstLimit": 10,
               "RateLimit": 10
