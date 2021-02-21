@@ -11,6 +11,11 @@
         "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
         "Default" : "visitor"
       },
+      "apiResourcePath": {
+        "Description": "Endpoint path part",
+        "Type": "String",
+        "Default" : "visitor"
+      },
       "apiKeyName": {
         "Description" : "API Key is used in calling api",
         "Type": "String",
@@ -56,6 +61,7 @@
         "Type": "AWS::CloudFormation::Stack",
         "Properties": {
           "Parameters": {
+            "PassedPathPart": { "Ref": "apiResourcePath" },
             "PassedApiKey": { "Ref": "apiKeyName" },
             "PassedLambdaRoleArn": { "Fn::GetAtt": ["RolesStack", "Outputs.LambdaRoleArn"] },
             "PassedApiLogRoleArn": { "Fn::GetAtt": ["RolesStack", "Outputs.ApiLogRoleArn"] },
