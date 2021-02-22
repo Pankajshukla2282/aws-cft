@@ -77,7 +77,7 @@
           "ContentHandling": "CONVERT_TO_TEXT",
           "PassthroughBehavior": "WHEN_NO_MATCH",
           "RequestTemplates": {
-            "application/json": "{\"body\": \"$input.body\"}"
+            "application/json": "{\"httpMethod\": \"$context.httpMethod\",\"body\": \"$util.escapeJavaScript($input.json('$'))\"}"
           },
           "RequestParameters": {
             "integration.request.header.Content-Type": "'application/x-www-form-urlencoded'"
@@ -126,7 +126,7 @@
         "Name": "VisitorRespModel",
         "Schema": {
           "properties": {
-            "message": { "type": "string" }
+            "body": { "type": "string" }
           },
           "$schema": "http://json-schema.org/draft-04/schema#",
           "title": "VisitorAPIResponse",
