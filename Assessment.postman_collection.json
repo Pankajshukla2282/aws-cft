@@ -1,0 +1,51 @@
+{
+	"info": {
+		"_postman_id": "a2849ab0-a2ef-4fbc-ada7-c50cd5fc0dda",
+		"name": "Assessment",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "https://os4xqpgd84.execute-api.us-east-2.amazonaws.com/PROD/person/",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "MyApiKeyThatIsAtLeast20Characters",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"name\": \"Visitor2\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://os4xqpgd84.execute-api.us-east-2.amazonaws.com/PROD/person/",
+					"protocol": "https",
+					"host": [
+						"os4xqpgd84",
+						"execute-api",
+						"us-east-2",
+						"amazonaws",
+						"com"
+					],
+					"path": [
+						"PROD",
+						"person",
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
