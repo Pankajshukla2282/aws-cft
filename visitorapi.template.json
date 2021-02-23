@@ -126,7 +126,7 @@
         "Name": "VisitorRespModel",
         "Schema": {
           "properties": {
-            "body": { "type": "string" }
+            "message": { "type": "string" }
           },
           "$schema": "http://json-schema.org/draft-04/schema#",
           "title": "VisitorAPIResponse",
@@ -196,7 +196,7 @@
           "ApiId": {"Ref": "VisitorApi"},
           "Stage": {"Ref": "VisitorApiStage"},
           "Throttle": {
-            "/visitor/POST": {
+            "/person/POST": {
               "BurstLimit": 10,
               "RateLimit": 10
             }

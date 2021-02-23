@@ -14,7 +14,7 @@
       "apiResourcePath": {
         "Description": "Endpoint path part",
         "Type": "String",
-        "Default" : "visitor"
+        "Default" : "person"
       },
       "apiKeyName": {
         "Description" : "API Key is used in calling api",
