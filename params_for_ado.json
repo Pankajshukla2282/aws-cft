@@ -1,0 +1,24 @@
+[
+    {
+        "ParameterKey": "DbTableName",
+        "ParameterValue": "visitor"
+    },{
+        "ParameterKey": "apiResourcePath",
+        "ParameterValue": "person"
+    },{
+        "ParameterKey": "apiKeyName",
+        "ParameterValue": "MyApiKeyThatIsAtLeast20Characters"
+    },{
+        "ParameterKey": "DbStackTemplate",
+        "ParameterValue": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitordb.template.json"
+    },{
+        "ParameterKey": "RolesTemplate",
+        "ParameterValue": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorroles.template.json"
+    },{
+        "ParameterKey": "LambdaStackTemplate",
+        "ParameterValue": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorlambda.template.json"
+    },{
+        "ParameterKey": "ApiStackTemplate",
+        "ParameterValue": "https://visitor-cf-templates.s3.us-east-2.amazonaws.com/visitorapi.template.json"
+    }    
+]
