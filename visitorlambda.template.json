@@ -70,7 +70,7 @@
     "Outputs" : {
       "LambdaFunctionArn" : {
         "Description" : "Lambda function",
-        "Value": {"Fn::GetAtt": ["VisitorLambda","Arn"]}
+        "Value": { "Fn::GetAtt": ["VisitorLambda","Arn"] }
       }
     }
   }
