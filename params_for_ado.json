@@ -10,15 +10,15 @@
         "ParameterValue": "MyApiKeyThatIsAtLeast20Characters"
     },{
         "ParameterKey": "DbStackTemplate",
-        "ParameterValue": "https://visitor-cf-templates.s3.us-west-2.amazonaws.com/visitordb.template.json"
+        "ParameterValue": "https://visitor-cf-templates.s3.ap-south-1.amazonaws.com/visitordb.template.json"
     },{
         "ParameterKey": "RolesTemplate",
-        "ParameterValue": "https://visitor-cf-templates.s3.us-west-2.amazonaws.com/visitorroles.template.json"
+        "ParameterValue": "https://visitor-cf-templates.s3.ap-south-1.amazonaws.com/visitorroles.template.json"
     },{
         "ParameterKey": "LambdaStackTemplate",
-        "ParameterValue": "https://visitor-cf-templates.s3.us-west-2.amazonaws.com/visitorlambda.template.json"
+        "ParameterValue": "https://visitor-cf-templates.s3.ap-south-1.amazonaws.com/visitorlambda.template.json"
     },{
         "ParameterKey": "ApiStackTemplate",
-        "ParameterValue": "https://visitor-cf-templates.s3.us-west-2.amazonaws.com/visitorapi.template.json"
+        "ParameterValue": "https://visitor-cf-templates.s3.ap-south-1.amazonaws.com/visitorapi.template.json"
     }    
 ]
