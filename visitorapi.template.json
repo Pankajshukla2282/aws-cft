@@ -5,10 +5,14 @@
 
   "Parameters": {
     "PassedApiKey": {
-      "Description" : "API Key is used to call api",
-      "Type": "String"
+      "Description" : "API Key is used in calling api",
+      "Type": "String",
+      "NoEcho": "true",
+      "MinLength": "20",
+      "MaxLength": "50",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*"
     },
-    "PassedPathPart": {
+  "PassedPathPart": {
       "Description" : "API resource name",
       "Type": "String"
     },

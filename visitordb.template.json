@@ -6,7 +6,10 @@
   "Parameters" : {
     "PassedTableName": {
       "Description": "Name of DynamoDB table",
-      "Type": "String"
+      "Type": "String",
+      "MinLength" : 4,
+      "MaxLength" : 20,
+      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$"
     }
   },
 
